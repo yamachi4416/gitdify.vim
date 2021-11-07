@@ -138,7 +138,7 @@ function! s:OpenGitRevCurrentFileDiff(revision, filepath, winid) abort
 
   if l:bufid == -1 || !win_id2win(bufwinid(l:bufid))
     tabnew
-    execute printf('edit %s', fnameescape(a:filepath))
+    silent execute printf('edit %s', fnameescape(a:filepath))
     let l:winid = win_getid()
   endif
 
@@ -151,7 +151,7 @@ function! s:OpenGitRevFileDiff(before, after, filepath) abort
   let l:bfinfo = s:GetGitRevFileInfo(a:filepath, a:before)
   let l:bfexists = bufexists(l:bfinfo.bufname)
 
-  execute printf('tabedit %s', fnameescape(l:bfinfo.bufname))
+  silent execute printf('tabedit %s', fnameescape(l:bfinfo.bufname))
 
   let l:bufid = bufnr(l:bfinfo.bufname)
   let l:winid = bufwinid(l:bufid)
