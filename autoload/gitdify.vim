@@ -246,21 +246,9 @@ endfunction
 function! gitdify#OpenCommitLogPopup(filepath, bang) abort
   try
     if !empty(a:filepath)
-      let l:filepath = a:filepath
-    elseif a:bang
-      if exists('b:gitdify')
-        let l:filepath = b:gitdify.filepath
-      else
-        let l:filepath = expand('%:p')
-      endif
+      let l:filepath = expand(a:filepath)
     else
       let l:filepath = ''
-    endif
-
-    if !empty(l:filepath) && a:bang
-      if !s:IsGitFile(l:filepath, '')
-        let l:filepath = ''
-      endif
     endif
 
     call s:OpenCommitLogPopup(l:filepath, win_getid(), a:bang)
