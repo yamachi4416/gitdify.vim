@@ -1,7 +1,7 @@
 const s:EMPTY_HASH = '4b825dc642cb6eb9a060e54bf8d69288fbee4904'
 
 function! s:Catch(exception, throwpoint) abort
-  echomsg printf('%s(%s)', a:exception, a:throwpoint)
+  echomsg printf('%s - (%s)', a:exception, a:throwpoint)
 endfunction
 
 function! s:System(cmd, cwd) abort
@@ -15,6 +15,7 @@ function! s:System(cmd, cwd) abort
     let l:opts.cwd = a:cwd
   endif
 
+  " TODO: asynchronous
   let l:job = job_start(a:cmd, l:opts)
   while !l:info.exited
     sleep 10ms
