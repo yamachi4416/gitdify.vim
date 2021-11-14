@@ -173,18 +173,94 @@ function! s:OpenGitRevFileDiff(before, after, filepath) abort
   call win_gotoid(l:winid)
 endfunction
 
+function! s:CreatePopupObject(selects, scope) abort
+  let l:search = ''
+  let l:meta = {'pos': {}, 'result': 1}
+  let l:selects = map(a:selects, { i, v -> extend({ 'id': i + 1}, v) })
+  let l:popup = extend(extend({}, l:), a:scope)
+
+  function! l:popup.Items() dict abort
+    let l:items = copy(self.selects)
+    if len(self.search) > 0
+      call filter(l:items, { _, v -> stridx(v.text, self.search) != -1 })
+    endif
+    return extend([{ 'text': self.search }], l:items)
+  endfunction
+
+  function! l:popup.Filter(id, key) dict abort
+    let l:ignore_keys = [
+    \ "\<Down>", "\<C-N>",
+    \ "\<Up>", "\<C-P>",
+    \ "\<Space>", "\<Enter>",
+    \ "\<Esc>", "\<C-C>"
+    \ ]
+
+    let l:key = a:key
+    let l:result = line('.', a:id)
+    let self.meta.pos = popup_getpos(a:id)
+    let self.meta.result = l:result
+
+    if strtrans(l:key) ==# l:key
+      let self.search = self.search . l:key
+    elseif l:key ==# "\<BS>" || l:key ==# "\<C-H>"
+      let l:strlen = strchars(self.search)
+      if l:strlen > 0
+        let self.search = strcharpart(self.search, 0, l:strlen - 1)
+      endif
+    elseif l:key ==# "\<C-W>" || l:key ==# "\<DEL>"
+      let self.search = ''
+    elseif l:key ==# "\<Space>" || l:key ==# "\<Enter>"
+      if l:result == 1
+        return 1
+      endif
+    elseif l:key ==# "\<C-J>"
+      let l:key = "\<Down>"
+    elseif l:key ==# "\<C-K>"
+      let l:key = "\<Up>"
+    elseif l:key ==# "\<C-X>"
+      let l:key = "\<Esc>"
+    endif
+
+    if index(l:ignore_keys, l:key) != -1
+      return popup_filter_menu(a:id, l:key)
+    endif
+
+    call popup_settext(a:id, map(self.Items(), { _, v -> v.text }))
+
+    return 1
+  endfunction
+
+  function! l:popup.Open() dict abort
+    let l:winid = popup_menu(map(self.Items(), { _, v -> v.text }), extend({
+    \ 'callback': self.Callback,
+    \ 'filter': self.Filter,
+    \ 'pos': 'topleft',
+    \ 'maxheight': &lines * 6 / 10,
+    \ 'minheight': &lines * 6 / 10,
+    \ 'maxwidth': &columns * 6 / 10,
+    \ 'minwidth': &columns * 6 / 10,
+    \ 'resize': 1,
+    \}, self.meta.pos))
+    call win_execute(l:winid, printf(':%d', self.meta.result))
+  endfunction
+
+  return l:popup
+endfunction
+
 function! s:OpenCommitFilesPopup(filepath, before, after, winid, bang, ppopup) abort
-  let l:selects = s:GetGitDiffFiles(a:filepath, a:before, a:after)
-  let l:popup = extend(extend({}, a:), l:)
+  let l:popup = s:CreatePopupObject(
+  \ map(s:GetGitDiffFiles(a:filepath, a:before, a:after), { _,v -> ({ 'text': v.name, 'val': v.path }) }),
+  \ extend(extend({}, a:), l:))
 
   function! l:popup.Callback(id, result) dict abort
     try
-      if a:result != -1 && !empty(self.selects)
-        let l:selected = self.selects[a:result - 1]
+      let l:selects = self.Items()
+      if a:result > 0 && !empty(l:selects)
+        let l:selected = l:selects[a:result - 1]
         if self.bang
-          call s:OpenGitRevCurrentFileDiff(self.after, l:selected.path, self.winid)
+          call s:OpenGitRevCurrentFileDiff(self.after, l:selected.val, self.winid)
         else
-          call s:OpenGitRevFileDiff(self.before, self.after, l:selected.path)
+          call s:OpenGitRevFileDiff(self.before, self.after, l:selected.val)
         endif
       else
         call self.ppopup.Open()
@@ -194,33 +270,22 @@ function! s:OpenCommitFilesPopup(filepath, before, after, winid, bang, ppopup) a
     endtry
   endfunction
 
-  function! l:popup.Open() dict abort
-    let l:selects = map(copy(self.selects), { _, v -> v.name })
-    call popup_menu(l:selects, {
-    \ 'callback': self.Callback,
-    \ 'maxheight': &lines * 6 / 10,
-    \ 'maxwidth': &columns * 6 / 10,
-    \ 'minwidth': &columns * 6 / 10,
-    \ 'resize': 1,
-    \})
-  endfunction
-
   call l:popup.Open()
 endfunction
 
 function! s:OpenCommitLogPopup(filepath, winid, bang) abort
-  let l:selects = s:GetGitFileLog(a:filepath)
-  let l:popup = extend(extend({ '_pos': {}, '_res': 1 }, a:), l:)
+  let l:popup = s:CreatePopupObject(
+  \ map(s:GetGitFileLog(a:filepath), { _, v -> ({ 'text': v, 'val': v }) }),
+  \ extend(extend({}, a:), l:))
 
   function! l:popup.Callback(id, result) dict abort
     try
-      if a:result != -1 && !empty(self.selects)
-        let self._pos = popup_getpos(a:id)
-        let self._res = a:result
-        let l:selected = self.selects[a:result - 1]
-        let l:revision = split(l:selected, ' ')[0]
+      let l:selects = self.Items()
+      if a:result > 0 && !empty(l:selects)
+        let l:selected = l:selects[a:result - 1]
+        let l:revision = split(l:selected.val, ' ')[0]
         let l:after = l:revision
-        let l:before = len(self.selects) == a:result ? s:EMPTY_HASH : l:revision . '~1'
+        let l:before = len(self.selects) == l:selected.id ? s:EMPTY_HASH : l:revision . '~1'
         if !empty(self.filepath) && filereadable(self.filepath)
           if self.bang
             call s:OpenGitRevCurrentFileDiff(l:revision, self.filepath, self.winid)
@@ -234,17 +299,6 @@ function! s:OpenCommitLogPopup(filepath, winid, bang) abort
     catch /.*/
       call s:Catch(v:exception, v:throwpoint)
     endtry
-  endfunction
-
-  function! l:popup.Open() dict abort
-    let l:winid = popup_menu(self.selects, extend({
-    \ 'callback': self.Callback,
-    \ 'maxheight': &lines * 6 / 10,
-    \ 'maxwidth': &columns * 6 / 10,
-    \ 'minwidth': &columns * 6 / 10,
-    \ 'resize': 1,
-    \}, self._pos))
-    call win_execute(l:winid, printf(':%d', self._res))
   endfunction
 
   call l:popup.Open()
