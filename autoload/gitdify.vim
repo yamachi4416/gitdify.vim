@@ -1,5 +1,15 @@
 const s:EMPTY_HASH = '4b825dc642cb6eb9a060e54bf8d69288fbee4904'
 
+if exists('*mapnew')
+  const s:Mapnew = function('mapnew')
+else
+  function! s:Mapnew(arg1, arg2) abort
+    let l:ret = deepcopy(a:arg1)
+    call map(a:arg1, a:arg2)
+    return l:ret
+  endfunction
+endif
+
 function! s:Catch(exception, throwpoint) abort
   echomsg printf('%s - (%s)', a:exception, a:throwpoint)
 endfunction
@@ -70,13 +80,13 @@ function! s:GetGitLsFiles(filepath, revision) abort
     let l:revision = 'HEAD'
   endif
   let l:gitfiles = s:System(['git', 'ls-tree', '-r', '--name-only', '--', l:revision], l:gitdir)
-  return mapnew(l:gitfiles,
+  return s:Mapnew(l:gitfiles,
   \ { _, f -> ({ 'name': f, 'path': simplify(l:gitdir . '/' . f )}) })
 endfunction
 
 function! s:IsGitFile(filepath, revision) abort
   let l:files = s:GetGitLsFiles(a:filepath, a:revision)
-  let l:paths = mapnew(l:files,
+  let l:paths = s:Mapnew(l:files,
   \ { _, v -> s:NormalizePath(fnamemodify(v.path, ':p')) })
   let l:path = s:NormalizePath(fnamemodify(simplify(a:filepath), ':p'))
   return index(l:paths, l:path) != -1
@@ -85,7 +95,7 @@ endfunction
 function! s:GetGitDiffFiles(filepath, before, after) abort
   let l:gitdir = s:GetGitDir(a:filepath)
   let l:gitfiles = s:System(['git', 'diff', '--name-only', a:before, a:after], l:gitdir)
-  return mapnew(l:gitfiles,
+  return s:Mapnew(l:gitfiles,
   \ { _, f -> ({ 'name': f, 'path': simplify(l:gitdir . '/' . f )}) })
 endfunction
 
@@ -116,7 +126,7 @@ function! s:OpenDiffWindow(info, winid) abort
   let l:diffwinid = bufwinid(l:diffbufid)
 
   if !l:bfexists
-    call win_execute(l:diffwinid, printf('setlocal syntax=%s fileformat=%s',
+    call win_execute(l:diffwinid, printf('setlocal syntax=%s fileformat=%s undolevels=-1',
     \ getwinvar(a:winid, '&l:syntax'), getwinvar(a:winid, '&l:fileformat')))
     call setbufline(l:diffbufid, 1, a:info.lines)
   endif
@@ -157,6 +167,7 @@ function! s:OpenGitRevFileDiff(before, after, filepath) abort
   let l:winid = bufwinid(l:bufid)
 
   if !l:bfexists
+    call win_execute(l:winid, 'setlocal undolevels=-1')
     call setbufline(l:bufid, 1, l:bfinfo.lines)
     call win_execute(l:winid, 'setlocal buftype=nofile bufhidden=wipe noswapfile nobuflisted nomodifiable')
     call setbufvar(l:bufid, 'gitdify', { 'filepath': l:bfinfo.filepath })
@@ -189,7 +200,7 @@ function! s:OpenCommitFilesPopup(filepath, before, after, winid, bang, ppopup) a
   endfunction
 
   function! l:popup.Open() dict abort
-    let l:selects = mapnew(self.selects, { _, v -> v.name })
+    let l:selects = s:Mapnew(self.selects, { _, v -> v.name })
     call popup_menu(l:selects, {
     \ 'callback': self.Callback,
     \ 'maxheight': &lines * 6 / 10,
