@@ -1,7 +1,15 @@
 const s:EMPTY_HASH = '4b825dc642cb6eb9a060e54bf8d69288fbee4904'
 
 function! s:Catch(exception, throwpoint) abort
-  echomsg printf('%s - (%s)', a:exception, a:throwpoint)
+  let l:level = get(g:, 'gitdify_error_message', 'INFO')
+  echohl WarningMsg
+  if l:level ==# 'DEBUG'
+    echomsg a:exception
+    echomsg a:throwpoint
+  else
+    echomsg printf('%s', a:exception)
+  endif
+  echohl None
 endfunction
 
 function! s:System(cmd, cwd) abort
