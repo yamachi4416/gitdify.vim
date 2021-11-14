@@ -1,15 +1,5 @@
 const s:EMPTY_HASH = '4b825dc642cb6eb9a060e54bf8d69288fbee4904'
 
-if exists('*mapnew')
-  const s:Mapnew = function('mapnew')
-else
-  function! s:Mapnew(arg1, arg2) abort
-    let l:ret = deepcopy(a:arg1)
-    call map(a:arg1, a:arg2)
-    return l:ret
-  endfunction
-endif
-
 function! s:Catch(exception, throwpoint) abort
   echomsg printf('%s - (%s)', a:exception, a:throwpoint)
 endfunction
@@ -80,23 +70,22 @@ function! s:GetGitLsFiles(filepath, revision) abort
     let l:revision = 'HEAD'
   endif
   let l:gitfiles = s:System(['git', 'ls-tree', '-r', '--name-only', '--', l:revision], l:gitdir)
-  return s:Mapnew(l:gitfiles,
-  \ { _, f -> ({ 'name': f, 'path': simplify(l:gitdir . '/' . f )}) })
+  call map(l:gitfiles, { _, f -> ({ 'name': f, 'path': simplify(l:gitdir . '/' . f )}) })
+  return l:gitfiles
 endfunction
 
 function! s:IsGitFile(filepath, revision) abort
   let l:files = s:GetGitLsFiles(a:filepath, a:revision)
-  let l:paths = s:Mapnew(l:files,
-  \ { _, v -> s:NormalizePath(fnamemodify(v.path, ':p')) })
+  call map(l:files, { _, v -> s:NormalizePath(fnamemodify(v.path, ':p')) })
   let l:path = s:NormalizePath(fnamemodify(simplify(a:filepath), ':p'))
-  return index(l:paths, l:path) != -1
+  return index(l:files, l:path) != -1
 endfunction
 
 function! s:GetGitDiffFiles(filepath, before, after) abort
   let l:gitdir = s:GetGitDir(a:filepath)
   let l:gitfiles = s:System(['git', 'diff', '--name-only', a:before, a:after], l:gitdir)
-  return s:Mapnew(l:gitfiles,
-  \ { _, f -> ({ 'name': f, 'path': simplify(l:gitdir . '/' . f )}) })
+  call map(l:gitfiles, { _, f -> ({ 'name': f, 'path': simplify(l:gitdir . '/' . f )}) })
+  return l:gitfiles
 endfunction
 
 function! s:GetGitRevFileInfo(filepath, revision) abort
@@ -200,7 +189,8 @@ function! s:OpenCommitFilesPopup(filepath, before, after, winid, bang, ppopup) a
   endfunction
 
   function! l:popup.Open() dict abort
-    let l:selects = s:Mapnew(self.selects, { _, v -> v.name })
+    let l:selects = copy(self.selects)
+    call map(l:selects, { _, v -> v.name })
     call popup_menu(l:selects, {
     \ 'callback': self.Callback,
     \ 'maxheight': &lines * 6 / 10,
