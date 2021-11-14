@@ -70,13 +70,12 @@ function! s:GetGitLsFiles(filepath, revision) abort
     let l:revision = 'HEAD'
   endif
   let l:gitfiles = s:System(['git', 'ls-tree', '-r', '--name-only', '--', l:revision], l:gitdir)
-  call map(l:gitfiles, { _, f -> ({ 'name': f, 'path': simplify(l:gitdir . '/' . f )}) })
-  return l:gitfiles
+  return map(l:gitfiles, { _, f -> ({ 'name': f, 'path': simplify(l:gitdir . '/' . f )}) })
 endfunction
 
 function! s:IsGitFile(filepath, revision) abort
-  let l:files = s:GetGitLsFiles(a:filepath, a:revision)
-  call map(l:files, { _, v -> s:NormalizePath(fnamemodify(v.path, ':p')) })
+  let l:files = map(s:GetGitLsFiles(a:filepath, a:revision),
+  \ { _, v -> s:NormalizePath(fnamemodify(v.path, ':p')) })
   let l:path = s:NormalizePath(fnamemodify(simplify(a:filepath), ':p'))
   return index(l:files, l:path) != -1
 endfunction
@@ -84,8 +83,7 @@ endfunction
 function! s:GetGitDiffFiles(filepath, before, after) abort
   let l:gitdir = s:GetGitDir(a:filepath)
   let l:gitfiles = s:System(['git', 'diff', '--name-only', a:before, a:after], l:gitdir)
-  call map(l:gitfiles, { _, f -> ({ 'name': f, 'path': simplify(l:gitdir . '/' . f )}) })
-  return l:gitfiles
+  return map(l:gitfiles, { _, f -> ({ 'name': f, 'path': simplify(l:gitdir . '/' . f )}) })
 endfunction
 
 function! s:GetGitRevFileInfo(filepath, revision) abort
@@ -189,8 +187,7 @@ function! s:OpenCommitFilesPopup(filepath, before, after, winid, bang, ppopup) a
   endfunction
 
   function! l:popup.Open() dict abort
-    let l:selects = copy(self.selects)
-    call map(l:selects, { _, v -> v.name })
+    let l:selects = map(copy(self.selects), { _, v -> v.name })
     call popup_menu(l:selects, {
     \ 'callback': self.Callback,
     \ 'maxheight': &lines * 6 / 10,
