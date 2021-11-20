@@ -169,7 +169,7 @@ function! s:OpenGitRevFileDiff(before, after, filepath) abort
   endif
 
   let l:diffwinid = s:OpenDiffWindow(l:afinfo, l:winid)
-  call win_execute(l:diffwinid, 'foldclose')
+  call win_execute(l:diffwinid, 'silent! foldclose!')
   call win_gotoid(l:winid)
 endfunction
 
