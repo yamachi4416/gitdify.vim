@@ -204,8 +204,8 @@ function! s:CreatePopupObject(selects, scope) abort
     if strtrans(l:key) ==# l:key
       if l:key ==# "\<Space>"
         if l:result == 1
-          let l:key = ''
           let self.search = self.search . l:key
+          let l:key = ''
         endif
       else
         let self.search = self.search . l:key
