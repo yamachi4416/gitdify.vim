@@ -202,9 +202,13 @@ function! s:CreatePopupObject(selects, scope) abort
     let self.meta.result = l:result
 
     if strtrans(l:key) ==# l:key
-      let self.search = self.search . l:key
-      if l:key ==# "\<Space>" && l:result == 1
-        let l:key = ''
+      if l:key ==# "\<Space>"
+        if l:result == 1
+          let l:key = ''
+          let self.search = self.search . l:key
+        endif
+      else
+        let self.search = self.search . l:key
       endif
     elseif l:key ==# "\<BS>" || l:key ==# "\<C-H>"
       let l:strlen = strchars(self.search)
