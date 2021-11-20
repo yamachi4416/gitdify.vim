@@ -247,7 +247,7 @@ function! s:CreatePopupObject(selects, scope) abort
   return l:popup
 endfunction
 
-function! s:OpenCommitFilesPopup(filepath, before, after, winid, bang, ppopup) abort
+function! s:OpenCommitFilesPopup(filepath, before, after, winid, bang, opener) abort
   let l:popup = s:CreatePopupObject(
   \ map(s:GetGitDiffFiles(a:filepath, a:before, a:after), { _,v -> ({ 'text': v.name, 'val': v.path }) }),
   \ extend(extend({}, a:), l:))
@@ -263,7 +263,7 @@ function! s:OpenCommitFilesPopup(filepath, before, after, winid, bang, ppopup) a
           call s:OpenGitRevFileDiff(self.before, self.after, l:selected.val)
         endif
       else
-        call self.ppopup.Open()
+        call self.opener.Open()
       endif
     catch /.*/
       call s:Catch(v:exception, v:throwpoint)
