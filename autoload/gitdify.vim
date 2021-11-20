@@ -230,7 +230,7 @@ function! s:CreatePopupObject(selects, scope) abort
     return 1
   endfunction
 
-  function! l:popup.Open() dict abort
+  function! l:popup._Open() dict abort
     let l:winid = popup_menu(map(self.Items(), { _, v -> v.text }), extend({
     \ 'callback': self.Callback,
     \ 'filter': self.Filter,
@@ -242,6 +242,11 @@ function! s:CreatePopupObject(selects, scope) abort
     \ 'resize': 1,
     \}, self.meta.pos))
     call win_execute(l:winid, printf(':%d', self.meta.result))
+    return l:winid
+  endfunction
+
+  function! l:popup.Open() dict abort
+    call self._Open()
   endfunction
 
   return l:popup
@@ -299,6 +304,11 @@ function! s:OpenCommitLogPopup(filepath, winid, bang) abort
     catch /.*/
       call s:Catch(v:exception, v:throwpoint)
     endtry
+  endfunction
+
+  function! l:popup.Open() dict abort
+    let l:winid = self._Open()
+    call win_execute(l:winid, 'setlocal syntax=gitrebase')
   endfunction
 
   call l:popup.Open()
