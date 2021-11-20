@@ -203,6 +203,9 @@ function! s:CreatePopupObject(selects, scope) abort
 
     if strtrans(l:key) ==# l:key
       let self.search = self.search . l:key
+      if l:key ==# "\<Space>" && l:result == 1
+        let l:key = ''
+      endif
     elseif l:key ==# "\<BS>" || l:key ==# "\<C-H>"
       let l:strlen = strchars(self.search)
       if l:strlen > 0
@@ -210,10 +213,8 @@ function! s:CreatePopupObject(selects, scope) abort
       endif
     elseif l:key ==# "\<C-W>" || l:key ==# "\<DEL>"
       let self.search = ''
-    elseif l:key ==# "\<Space>" || l:key ==# "\<Enter>"
-      if l:result == 1
-        return 1
-      endif
+    elseif l:key ==# "\<Enter>" && l:result == 1
+      return 1
     elseif l:key ==# "\<C-J>"
       let l:key = "\<Down>"
     elseif l:key ==# "\<C-K>"
@@ -261,7 +262,7 @@ function! s:OpenCommitFilesPopup(filepath, before, after, winid, bang, opener) a
   function! l:popup.Callback(id, result) dict abort
     try
       let l:selects = self.Items()
-      if a:result > 0 && !empty(l:selects)
+      if a:result > 1 && !empty(l:selects)
         let l:selected = l:selects[a:result - 1]
         if self.bang
           call s:OpenGitRevCurrentFileDiff(self.after, l:selected.val, self.winid)
@@ -287,7 +288,7 @@ function! s:OpenCommitLogPopup(filepath, winid, bang) abort
   function! l:popup.Callback(id, result) dict abort
     try
       let l:selects = self.Items()
-      if a:result > 0 && !empty(l:selects)
+      if a:result > 1 && !empty(l:selects)
         let l:selected = l:selects[a:result - 1]
         let l:revision = split(l:selected.val, ' ')[0]
         let l:after = l:revision
