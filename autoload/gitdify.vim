@@ -94,22 +94,21 @@ function! s:GetGitDiffFiles(filepath, before, after) abort
   return map(l:gitfiles, { _, f -> ({ 'name': f, 'path': simplify(l:gitdir . '/' . f )}) })
 endfunction
 
-function! s:GetGitRevFileInfo(filepath, revision) abort
-  let l:gitdir = s:GetGitDir(a:filepath)
-  let l:gitpath = s:ToRelativePath(l:gitdir, a:filepath)
+function! s:GetGitRevFileInfo(gitdir, filepath, revision) abort
+  let l:gitpath = s:ToRelativePath(a:gitdir, a:filepath)
   if s:IsGitFile(a:filepath, a:revision)
     let l:param = printf('%s:%s', a:revision, l:gitpath)
-    let l:lines = s:System(['git', 'show', l:param], l:gitdir)
+    let l:lines = s:System(['git', 'show', l:param], a:gitdir)
   else
     let l:lines = []
   endif
   return {
   \ 'revision': a:revision,
   \ 'filepath': fnamemodify(a:filepath, ':p'),
-  \ 'gitdir': l:gitdir,
+  \ 'gitdir': a:gitdir,
   \ 'gitpath': l:gitpath,
   \ 'lines': l:lines,
-  \ 'bufname': printf('gitdify://%s/%s:%s', l:gitdir, a:revision, l:gitpath)
+  \ 'bufname': printf('gitdify://%s/%s:%s', a:gitdir, a:revision, l:gitpath)
   \}
 endfunction
 
@@ -137,7 +136,8 @@ function! s:OpenDiffWindow(info, winid) abort
 endfunction
 
 function! s:OpenGitRevCurrentFileDiff(revision, filepath, winid) abort
-  let l:info = s:GetGitRevFileInfo(a:filepath, a:revision)
+  let l:gitdir = s:GetGitDir(a:filepath)
+  let l:info = s:GetGitRevFileInfo(l:gitdir, a:filepath, a:revision)
   let l:bufid = bufnr(a:filepath)
   let l:winid = a:winid
 
@@ -152,8 +152,9 @@ function! s:OpenGitRevCurrentFileDiff(revision, filepath, winid) abort
 endfunction
 
 function! s:OpenGitRevFileDiff(before, after, filepath) abort
-  let l:afinfo = s:GetGitRevFileInfo(a:filepath, a:after)
-  let l:bfinfo = s:GetGitRevFileInfo(a:filepath, a:before)
+  let l:gitdir = s:GetGitDir(a:filepath)
+  let l:afinfo = s:GetGitRevFileInfo(l:gitdir, a:filepath, a:after)
+  let l:bfinfo = s:GetGitRevFileInfo(l:gitdir, a:filepath, a:before)
   let l:bfexists = bufexists(l:bfinfo.bufname)
 
   silent execute printf('tabedit %s', fnameescape(l:bfinfo.bufname))
