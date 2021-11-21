@@ -275,7 +275,9 @@ function! s:CreatePopupObject(scope) abort
     \ 'maxwidth': &columns * 6 / 10,
     \ 'minwidth': &columns * 6 / 10,
     \ 'resize': 1,
+    \ 'title': get(self.meta, 'title', '')
     \}, self.meta.pos))
+
     call win_execute(l:winid, printf(':%d', self.meta.result))
     return l:winid
   endfunction
@@ -334,6 +336,7 @@ function! s:CreateCommitLogPopup(filepath, winid, bang) abort
       if a:result > 1 && !empty(l:selects)
         let l:selected = l:selects[a:result - 1]
         let l:revision = split(l:selected.val, ' ')[0]
+        let l:message = l:selected.val[len(l:revision) + 1:]
         let l:after = l:revision
         let l:before = len(self.selects) == l:selected.id ? s:EMPTY_HASH : l:revision . '~1'
         if !empty(self.filepath) && filereadable(self.filepath)
@@ -345,6 +348,7 @@ function! s:CreateCommitLogPopup(filepath, winid, bang) abort
         else
           let l:files_popup = s:CreateCommitFilesPopup(
           \ self.filepath, l:before, l:after, self.winid, self.bang, self)
+          let l:files_popup.meta.title = printf('[%s] %s', l:revision, l:message)
           call l:files_popup.Open()
         endif
       endif
