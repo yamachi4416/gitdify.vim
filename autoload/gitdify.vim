@@ -146,7 +146,9 @@ function! s:OpenGitRevCurrentFileDiff(revision, filepath, gitdir, winid) abort
   endif
 
   call s:OpenDiffWindow(l:info, l:winid)
-  call win_gotoid(l:winid)
+
+  return l:winid
+  "call win_gotoid(l:winid)
 endfunction
 
 function! s:OpenGitRevFileDiff(before, after, filepath, gitdir) abort
@@ -166,8 +168,10 @@ function! s:OpenGitRevFileDiff(before, after, filepath, gitdir) abort
   call win_execute(l:winid, 'setlocal undolevels=-1')
   call win_execute(l:winid, 'setlocal buftype=nofile bufhidden=wipe noswapfile nobuflisted nomodifiable')
 
-  let l:diffwinid = s:OpenDiffWindow(l:afinfo, l:winid)
-  call win_gotoid(l:winid)
+  call s:OpenDiffWindow(l:afinfo, l:winid)
+
+  return l:winid
+  "call win_gotoid(l:winid)
 endfunction
 
 function! s:CreatePopupObject(scope) abort
@@ -278,27 +282,33 @@ function! s:CreateCommitFilesPopup(filepath, before, after, winid, bang, opener)
   let l:popup = s:CreatePopupObject(extend(extend({}, a:), l:))
 
   function! l:popup.ItemList() dict abort
-    if !has_key(self, 'gitdir')
-      if has_key(self.opener, 'gitdir')
-        let self.gitdir = self.opener.gitdir
-      else
-        let self.gitdir = s:GetGitDir(self.filepath)
+    if !has_key(self, '_selects')
+      if !has_key(self, 'gitdir')
+        if has_key(self.opener, 'gitdir')
+          let self.gitdir = self.opener.gitdir
+        else
+          let self.gitdir = s:GetGitDir(self.filepath)
+        endif
       endif
+      let self._selects = map(s:GetGitDiffFiles(
+      \ self.filepath, self.gitdir, self.before, self.after),
+      \ { _, v -> ({ 'text': v.name, 'val': v.path }) })
     endif
-    return map(s:GetGitDiffFiles(
-    \ self.filepath, self.gitdir, self.before, self.after),
-    \ { _,v -> ({ 'text': v.name, 'val': v.path }) })
+    return self._selects
   endfunction
 
-  function! l:popup.Callback(id, result) dict abort
+  function! l:popup.OpenDiff(id, result, focus) dict abort
     try
       let l:selects = self.Items()
       if a:result > 1 && !empty(l:selects)
         let l:selected = l:selects[a:result - 1]
         if self.bang
-          call s:OpenGitRevCurrentFileDiff(self.after, l:selected.val, self.gitdir, self.winid)
+          let l:winid = s:OpenGitRevCurrentFileDiff(self.after, l:selected.val, self.gitdir, self.winid)
         else
-          call s:OpenGitRevFileDiff(self.before, self.after, l:selected.val, self.gitdir)
+          let l:winid = s:OpenGitRevFileDiff(self.before, self.after, l:selected.val, self.gitdir)
+        endif
+        if a:focus
+          call win_gotoid(l:winid)
         endif
       elseif a:result != 0
         if type(get(self.opener, 'Open', '')) == type(function('tr'))
@@ -308,6 +318,25 @@ function! s:CreateCommitFilesPopup(filepath, before, after, winid, bang, opener)
     catch /.*/
       call s:Catch(v:exception, v:throwpoint)
     endtry
+  endfunction
+
+  function! l:popup.Callback(id, result) dict abort
+    call self.OpenDiff(a:id, a:result, 1)
+  endfunction
+
+  function! l:popup.KeyMap(id, key, enter) dict abort
+    if a:key ==# "\<C-T>"
+      let l:result = self.meta.result
+      if l:result > 1
+        let l:selects = self.Items()
+        let l:selected = l:selects[l:result - 1]
+        call self.OpenDiff(a:id, l:result, 0)
+        call filter(self._selects, { _, v -> !(v.val is l:selected.val) })
+        call self.UpdateItems()
+      endif
+    endif
+
+    return 0
   endfunction
 
   return l:popup
@@ -336,9 +365,11 @@ function! s:CreateCommitLogPopup(filepath, winid, bang) abort
         let l:before = len(self.selects) == l:selected.id ? s:EMPTY_HASH : l:revision . '~1'
         if !empty(self.filepath) && filereadable(self.filepath)
           if self.bang
-            call s:OpenGitRevCurrentFileDiff(l:revision, self.filepath, self.gitdir, self.winid)
+            let l:winid = s:OpenGitRevCurrentFileDiff(l:revision, self.filepath, self.gitdir, self.winid)
+            call win_gotoid(l:winid)
           else
-            call s:OpenGitRevFileDiff(l:before, l:after, self.filepath, self.gitdir)
+            let l:winid = s:OpenGitRevFileDiff(l:before, l:after, self.filepath, self.gitdir)
+            call win_gotoid(l:winid)
           endif
         else
           let l:files_popup = s:CreateCommitFilesPopup(
