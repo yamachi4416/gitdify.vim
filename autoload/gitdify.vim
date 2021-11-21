@@ -182,14 +182,22 @@ function! s:CreatePopupObject(scope) abort
   let l:meta = { 'pos': {}, 'result': 1 }
   let l:popup = extend(extend({}, l:), a:scope)
 
-  function! l:popup.SetItems(selects) dict abort
-    let self.selects = map(a:selects, { i, v -> extend({ 'id': i + 1}, v) }) 
+  function! l:popup.ItemList() dict abort
+    return []
+  endfunction
+
+  function! l:popup.UpdateItems() dict abort
+    let self.selects = map(self.ItemList(), { i, v -> extend({ 'id': i + 1 }, v) })
   endfunction
 
   function! l:popup.Items() dict abort
     let l:items = copy(self.selects)
     if len(self.search) > 0
-      call filter(l:items, { _, v -> stridx(v.text, self.search) != -1 })
+      if get(g:, 'gitdify_filter_use_fuzzy', 0) == 1
+        let l:items = matchfuzzy(l:items, self.search, { 'key': 'text' })
+      else
+        call filter(l:items, { _, v -> stridx(v.text, self.search) != -1 })
+      endif
     endif
     return extend([{ 'text': self.search }], l:items)
   endfunction
@@ -254,6 +262,10 @@ function! s:CreatePopupObject(scope) abort
   endfunction
 
   function! l:popup._Open() dict abort
+    if !has_key(self, 'selects')
+      call self.UpdateItems()
+    endif
+
     let l:winid = popup_menu(map(self.Items(), { _, v -> v.text }), extend({
     \ 'callback': self.Callback,
     \ 'filter': self.Filter,
@@ -275,8 +287,14 @@ function! s:CreatePopupObject(scope) abort
   return l:popup
 endfunction
 
-function! s:OpenCommitFilesPopup(filepath, before, after, winid, bang, opener) abort
+function! s:CreateCommitFilesPopup(filepath, before, after, winid, bang, opener) abort
   let l:popup = s:CreatePopupObject(extend(extend({}, a:), l:))
+
+  function! l:popup.ItemList() dict abort
+    return map(s:GetGitDiffFiles(
+    \ self.filepath, self.before, self.after),
+    \ { _,v -> ({ 'text': v.name, 'val': v.path }) })
+  endfunction
 
   function! l:popup.Callback(id, result) dict abort
     try
@@ -289,25 +307,25 @@ function! s:OpenCommitFilesPopup(filepath, before, after, winid, bang, opener) a
           call s:OpenGitRevFileDiff(self.before, self.after, l:selected.val)
         endif
       else
-        call self.opener.Open()
+        if type(get(self.opener, 'Open', '')) == type(function('tr'))
+          call self.opener.Open()
+        endif
       endif
     catch /.*/
       call s:Catch(v:exception, v:throwpoint)
     endtry
   endfunction
 
-  call l:popup.SetItems(
-  \ map(s:GetGitDiffFiles(a:filepath, a:before, a:after), { _,v -> ({ 'text': v.name, 'val': v.path }) }))
-  call l:popup.Open()
+  return l:popup
 endfunction
 
-function! s:OpenCommitLogPopup(filepath, winid, bang) abort
+function! s:CreateCommitLogPopup(filepath, winid, bang) abort
   let l:_all = 0
   let l:popup = s:CreatePopupObject(extend(extend({}, a:), l:))
 
-  function! l:popup._UpdateItems() dict abort
-    call self.SetItems(
-    \ map(s:GetGitFileLog(self.filepath, self._all), { _, v -> ({ 'text': v, 'val': v }) }))
+  function! l:popup.ItemList() dict abort
+    return map(s:GetGitFileLog(
+    \ self.filepath, self._all), { _, v -> ({ 'text': v, 'val': v }) })
   endfunction
 
   function! l:popup.Callback(id, result) dict abort
@@ -325,7 +343,9 @@ function! s:OpenCommitLogPopup(filepath, winid, bang) abort
             call s:OpenGitRevFileDiff(l:before, l:after, self.filepath)
           endif
         else
-          call s:OpenCommitFilesPopup(self.filepath, l:before, l:after, self.winid, self.bang, self)
+          let l:files_popup = s:CreateCommitFilesPopup(
+          \ self.filepath, l:before, l:after, self.winid, self.bang, self)
+          call l:files_popup.Open()
         endif
       endif
     catch /.*/
@@ -336,7 +356,7 @@ function! s:OpenCommitLogPopup(filepath, winid, bang) abort
   function! l:popup.KeyMap(id, key, enter) dict abort
     if a:key ==# "\<C-A>"
       let self._all = !self._all
-      call self._UpdateItems()
+      call self.UpdateItems()
     endif
 
     return 0
@@ -347,8 +367,7 @@ function! s:OpenCommitLogPopup(filepath, winid, bang) abort
     call win_execute(l:winid, 'setlocal syntax=gitrebase')
   endfunction
 
-  call l:popup._UpdateItems()
-  call l:popup.Open()
+  return l:popup
 endfunction
 
 function! gitdify#OpenCommitLogPopup(filepath, bang) abort
@@ -359,7 +378,8 @@ function! gitdify#OpenCommitLogPopup(filepath, bang) abort
       let l:filepath = ''
     endif
 
-    call s:OpenCommitLogPopup(l:filepath, win_getid(), a:bang)
+    let l:logs_popup = s:CreateCommitLogPopup(l:filepath, win_getid(), a:bang)
+    call l:logs_popup.Open()
   catch /.*/
     call s:Catch(v:exception, v:throwpoint)
   endtry
