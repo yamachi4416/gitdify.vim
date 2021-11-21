@@ -59,47 +59,44 @@ function! s:GetGitDir(filepath) abort
   return s:NormalizePath(l:output[0])
 endfunction
 
-function! s:GetGitFileLog(filepath, all) abort
-  let l:gitdir = s:GetGitDir(a:filepath)
+function! s:GetGitFileLog(filepath, gitdir, all) abort
   let l:command = ['git', 'log', '--oneline']
   if a:all
     call extend(l:command, ['--all', '--decorate=full'])
   endif
   if !empty(a:filepath)
     if filereadable(a:filepath) || isdirectory(a:filepath)
-      let l:gitpath = s:ToRelativePath(l:gitdir, a:filepath)
+      let l:gitpath = s:ToRelativePath(a:gitdir, a:filepath)
       call extend(l:command, ['--', l:gitpath])
     endif
   endif
-  return s:System(l:command, l:gitdir)
+  return s:System(l:command, a:gitdir)
 endfunction
 
-function! s:GetGitLsFiles(filepath, revision) abort
-  let l:gitdir = s:GetGitDir(a:filepath)
+function! s:GetGitLsFiles(filepath, gitdir, revision) abort
   let l:revision = a:revision
   if empty(l:revision)
     let l:revision = 'HEAD'
   endif
-  let l:gitfiles = s:System(['git', 'ls-tree', '-r', '--name-only', '--', l:revision], l:gitdir)
-  return map(l:gitfiles, { _, f -> ({ 'name': f, 'path': simplify(l:gitdir . '/' . f ) }) })
+  let l:gitfiles = s:System(['git', 'ls-tree', '-r', '--name-only', '--', l:revision], a:gitdir)
+  return map(l:gitfiles, { _, f -> ({ 'name': f, 'path': simplify(a:gitdir . '/' . f ) }) })
 endfunction
 
-function! s:IsGitFile(filepath, revision) abort
-  let l:files = map(s:GetGitLsFiles(a:filepath, a:revision),
+function! s:IsGitFile(filepath, gitdir, revision) abort
+  let l:files = map(s:GetGitLsFiles(a:filepath, a:gitdir, a:revision),
   \ { _, v -> s:NormalizePath(fnamemodify(v.path, ':p')) })
   let l:path = s:NormalizePath(fnamemodify(simplify(a:filepath), ':p'))
   return index(l:files, l:path) != -1
 endfunction
 
-function! s:GetGitDiffFiles(filepath, before, after) abort
-  let l:gitdir = s:GetGitDir(a:filepath)
-  let l:gitfiles = s:System(['git', 'diff', '--name-only', a:before, a:after], l:gitdir)
-  return map(l:gitfiles, { _, f -> ({ 'name': f, 'path': simplify(l:gitdir . '/' . f ) }) })
+function! s:GetGitDiffFiles(filepath, gitdir, before, after) abort
+  let l:gitfiles = s:System(['git', 'diff', '--name-only', a:before, a:after], a:gitdir)
+  return map(l:gitfiles, { _, f -> ({ 'name': f, 'path': simplify(a:gitdir . '/' . f ) }) })
 endfunction
 
 function! s:GetGitRevFileInfo(gitdir, filepath, revision) abort
   let l:gitpath = s:ToRelativePath(a:gitdir, a:filepath)
-  if s:IsGitFile(a:filepath, a:revision)
+  if s:IsGitFile(a:filepath, a:gitdir, a:revision)
     let l:param = printf('%s:%s', a:revision, l:gitpath)
     let l:lines = s:System(['git', 'show', l:param], a:gitdir)
   else
@@ -137,9 +134,8 @@ function! s:OpenDiffWindow(info, winid) abort
   return l:diffwinid
 endfunction
 
-function! s:OpenGitRevCurrentFileDiff(revision, filepath, winid) abort
-  let l:gitdir = s:GetGitDir(a:filepath)
-  let l:info = s:GetGitRevFileInfo(l:gitdir, a:filepath, a:revision)
+function! s:OpenGitRevCurrentFileDiff(revision, filepath, gitdir, winid) abort
+  let l:info = s:GetGitRevFileInfo(a:gitdir, a:filepath, a:revision)
   let l:bufid = bufnr(a:filepath)
   let l:winid = a:winid
 
@@ -153,10 +149,9 @@ function! s:OpenGitRevCurrentFileDiff(revision, filepath, winid) abort
   call win_gotoid(l:winid)
 endfunction
 
-function! s:OpenGitRevFileDiff(before, after, filepath) abort
-  let l:gitdir = s:GetGitDir(a:filepath)
-  let l:afinfo = s:GetGitRevFileInfo(l:gitdir, a:filepath, a:after)
-  let l:bfinfo = s:GetGitRevFileInfo(l:gitdir, a:filepath, a:before)
+function! s:OpenGitRevFileDiff(before, after, filepath, gitdir) abort
+  let l:afinfo = s:GetGitRevFileInfo(a:gitdir, a:filepath, a:after)
+  let l:bfinfo = s:GetGitRevFileInfo(a:gitdir, a:filepath, a:before)
   let l:bfexists = bufexists(l:bfinfo.bufname)
 
   call win_execute(win_getid() ,printf('tabedit %s', fnameescape(l:bfinfo.bufname)))
@@ -283,8 +278,15 @@ function! s:CreateCommitFilesPopup(filepath, before, after, winid, bang, opener)
   let l:popup = s:CreatePopupObject(extend(extend({}, a:), l:))
 
   function! l:popup.ItemList() dict abort
+    if !has_key(self, 'gitdir')
+      if has_key(self.opener, 'gitdir')
+        let self.gitdir = self.opener.gitdir
+      else
+        let self.gitdir = s:GetGitDir(self.filepath)
+      endif
+    endif
     return map(s:GetGitDiffFiles(
-    \ self.filepath, self.before, self.after),
+    \ self.filepath, self.gitdir, self.before, self.after),
     \ { _,v -> ({ 'text': v.name, 'val': v.path }) })
   endfunction
 
@@ -294,9 +296,9 @@ function! s:CreateCommitFilesPopup(filepath, before, after, winid, bang, opener)
       if a:result > 1 && !empty(l:selects)
         let l:selected = l:selects[a:result - 1]
         if self.bang
-          call s:OpenGitRevCurrentFileDiff(self.after, l:selected.val, self.winid)
+          call s:OpenGitRevCurrentFileDiff(self.after, l:selected.val, self.gitdir, self.winid)
         else
-          call s:OpenGitRevFileDiff(self.before, self.after, l:selected.val)
+          call s:OpenGitRevFileDiff(self.before, self.after, l:selected.val, self.gitdir)
         endif
       elseif a:result != 0
         if type(get(self.opener, 'Open', '')) == type(function('tr'))
@@ -316,8 +318,11 @@ function! s:CreateCommitLogPopup(filepath, winid, bang) abort
   let l:popup = s:CreatePopupObject(extend(extend({}, a:), l:))
 
   function! l:popup.ItemList() dict abort
+    if !has_key(self, 'gitdir')
+      let self.gitdir = s:GetGitDir(self.filepath)
+    endif
     return map(s:GetGitFileLog(
-    \ self.filepath, self._all), { _, v -> ({ 'text': v, 'val': v }) })
+    \ self.filepath, self.gitdir, self._all), { _, v -> ({ 'text': v, 'val': v }) })
   endfunction
 
   function! l:popup.Callback(id, result) dict abort
@@ -331,9 +336,9 @@ function! s:CreateCommitLogPopup(filepath, winid, bang) abort
         let l:before = len(self.selects) == l:selected.id ? s:EMPTY_HASH : l:revision . '~1'
         if !empty(self.filepath) && filereadable(self.filepath)
           if self.bang
-            call s:OpenGitRevCurrentFileDiff(l:revision, self.filepath, self.winid)
+            call s:OpenGitRevCurrentFileDiff(l:revision, self.filepath, self.gitdir, self.winid)
           else
-            call s:OpenGitRevFileDiff(l:before, l:after, self.filepath)
+            call s:OpenGitRevFileDiff(l:before, l:after, self.filepath, self.gitdir)
           endif
         else
           let l:files_popup = s:CreateCommitFilesPopup(
