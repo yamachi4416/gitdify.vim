@@ -227,6 +227,9 @@ function! s:CreatePopupObject(scope) abort
       else
         let self.search = self.search . l:key
       endif
+    elseif l:key ==# "\<C-C>"
+      call popup_close(a:id)
+      return 1
     elseif l:key ==# "\<BS>" || l:key ==# "\<C-H>"
       let l:strlen = strchars(self.search)
       if l:strlen > 0
@@ -308,7 +311,7 @@ function! s:CreateCommitFilesPopup(filepath, before, after, winid, bang, opener)
         else
           call s:OpenGitRevFileDiff(self.before, self.after, l:selected.val)
         endif
-      else
+      elseif a:result != 0
         if type(get(self.opener, 'Open', '')) == type(function('tr'))
           call self.opener.Open()
         endif
