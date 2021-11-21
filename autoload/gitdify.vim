@@ -59,9 +59,12 @@ function! s:GetGitDir(filepath) abort
   return s:NormalizePath(l:output[0])
 endfunction
 
-function! s:GetGitFileLog(filepath) abort
+function! s:GetGitFileLog(filepath, all) abort
   let l:gitdir = s:GetGitDir(a:filepath)
   let l:command = ['git', 'log', '--oneline']
+  if a:all
+    call extend(l:command, ['--all', '--decorate=full'])
+  endif
   if !empty(a:filepath)
     if filereadable(a:filepath) || isdirectory(a:filepath)
       let l:gitpath = s:ToRelativePath(l:gitdir, a:filepath)
@@ -174,11 +177,14 @@ function! s:OpenGitRevFileDiff(before, after, filepath) abort
   call win_gotoid(l:winid)
 endfunction
 
-function! s:CreatePopupObject(selects, scope) abort
+function! s:CreatePopupObject(scope) abort
   let l:search = ''
   let l:meta = {'pos': {}, 'result': 1}
-  let l:selects = map(a:selects, { i, v -> extend({ 'id': i + 1}, v) })
   let l:popup = extend(extend({}, l:), a:scope)
+
+  function! l:popup.SetItems(selects) dict abort
+    let self.selects = map(a:selects, { i, v -> extend({ 'id': i + 1}, v) }) 
+  endfunction
 
   function! l:popup.Items() dict abort
     let l:items = copy(self.selects)
@@ -186,6 +192,10 @@ function! s:CreatePopupObject(selects, scope) abort
       call filter(l:items, { _, v -> stridx(v.text, self.search) != -1 })
     endif
     return extend([{ 'text': self.search }], l:items)
+  endfunction
+
+  function! l:popup.KeyMap(id, key, enter) dict abort
+    return 0
   endfunction
 
   function! l:popup.Filter(id, key) dict abort
@@ -198,6 +208,7 @@ function! s:CreatePopupObject(selects, scope) abort
 
     let l:key = a:key
     let l:result = line('.', a:id)
+    let l:enter = 0
     let self.meta.pos = popup_getpos(a:id)
     let self.meta.result = l:result
 
@@ -206,6 +217,8 @@ function! s:CreatePopupObject(selects, scope) abort
         if l:result == 1
           let self.search = self.search . l:key
           let l:key = ''
+        else
+          let l:enter = 1
         endif
       else
         let self.search = self.search . l:key
@@ -217,8 +230,12 @@ function! s:CreatePopupObject(selects, scope) abort
       endif
     elseif l:key ==# "\<C-W>" || l:key ==# "\<DEL>"
       let self.search = ''
-    elseif l:key ==# "\<Enter>" && l:result == 1
-      return 1
+    elseif l:key ==# "\<Enter>"
+      if l:result == 1
+        return 1
+      else
+        let l:enter = 1
+      endif
     elseif l:key ==# "\<C-J>"
       let l:key = "\<Down>"
     elseif l:key ==# "\<C-K>"
@@ -229,6 +246,10 @@ function! s:CreatePopupObject(selects, scope) abort
 
     if index(l:ignore_keys, l:key) != -1
       return popup_filter_menu(a:id, l:key)
+    endif
+
+    if self.KeyMap(a:id, l:key, l:enter)
+      return 1
     endif
 
     call popup_settext(a:id, map(self.Items(), { _, v -> v.text }))
@@ -259,9 +280,7 @@ function! s:CreatePopupObject(selects, scope) abort
 endfunction
 
 function! s:OpenCommitFilesPopup(filepath, before, after, winid, bang, opener) abort
-  let l:popup = s:CreatePopupObject(
-  \ map(s:GetGitDiffFiles(a:filepath, a:before, a:after), { _,v -> ({ 'text': v.name, 'val': v.path }) }),
-  \ extend(extend({}, a:), l:))
+  let l:popup = s:CreatePopupObject(extend(extend({}, a:), l:))
 
   function! l:popup.Callback(id, result) dict abort
     try
@@ -281,13 +300,19 @@ function! s:OpenCommitFilesPopup(filepath, before, after, winid, bang, opener) a
     endtry
   endfunction
 
+  call l:popup.SetItems(
+  \ map(s:GetGitDiffFiles(a:filepath, a:before, a:after), { _,v -> ({ 'text': v.name, 'val': v.path }) }))
   call l:popup.Open()
 endfunction
 
 function! s:OpenCommitLogPopup(filepath, winid, bang) abort
-  let l:popup = s:CreatePopupObject(
-  \ map(s:GetGitFileLog(a:filepath), { _, v -> ({ 'text': v, 'val': v }) }),
-  \ extend(extend({}, a:), l:))
+  let l:_all = 0
+  let l:popup = s:CreatePopupObject(extend(extend({}, a:), l:))
+
+  function! l:popup._UpdateItems() dict abort
+    call self.SetItems(
+    \ map(s:GetGitFileLog(self.filepath, self._all), { _, v -> ({ 'text': v, 'val': v }) }))
+  endfunction
 
   function! l:popup.Callback(id, result) dict abort
     try
@@ -312,11 +337,21 @@ function! s:OpenCommitLogPopup(filepath, winid, bang) abort
     endtry
   endfunction
 
+  function! l:popup.KeyMap(id, key, enter) dict abort
+    if a:key ==# "\<C-A>"
+      let self._all = !self._all
+      call self._UpdateItems()
+    endif
+
+    return 0
+  endfunction
+
   function! l:popup.Open() dict abort
     let l:winid = self._Open()
     call win_execute(l:winid, 'setlocal syntax=gitrebase')
   endfunction
 
+  call l:popup._UpdateItems()
   call l:popup.Open()
 endfunction
 
