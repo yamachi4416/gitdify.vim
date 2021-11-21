@@ -120,20 +120,19 @@ function! s:OpenDiffWindow(info, winid) abort
 
   call win_execute(a:winid, printf('vsplit %s', fnameescape(a:info.bufname)))
   let l:diffbufid = bufnr(a:info.bufname)
-  let l:diffwinid = bufwinid(l:diffbufid)
+  let l:diffwinid = sort(win_findbuf(l:diffbufid))[-1]
 
+  call win_execute(a:winid, 'setlocal foldlevel=0')
   if !l:bfexists
-    call win_execute(l:diffwinid, printf('setlocal syntax=%s fileformat=%s undolevels=-1',
-    \ getwinvar(a:winid, '&l:syntax'), getwinvar(a:winid, '&l:fileformat')))
+    call win_execute(l:diffwinid, printf('setlocal fileformat=%s undolevels=-1 foldlevel=0', getwinvar(a:winid, '&l:fileformat')))
     call setbufline(l:diffbufid, 1, a:info.lines)
+    call win_execute(l:diffwinid, 'setlocal buftype=nofile bufhidden=wipe noswapfile nobuflisted nomodifiable')
   endif
 
   call win_execute(l:diffwinid, 'diffthis')
-  call win_execute(l:diffwinid, 'setlocal buftype=nofile bufhidden=wipe noswapfile nobuflisted nomodifiable')
   call setbufvar(l:diffbufid, 'gitdify', { 'filepath': a:info.filepath })
 
   call win_execute(a:winid, 'diffthis')
-  call win_execute(a:winid, 'redraw')
 
   return l:diffwinid
 endfunction
@@ -145,9 +144,9 @@ function! s:OpenGitRevCurrentFileDiff(revision, filepath, winid) abort
   let l:winid = a:winid
 
   if l:bufid == -1 || !win_id2win(bufwinid(l:bufid))
-    tabnew
-    silent execute printf('edit %s', fnameescape(a:filepath))
-    let l:winid = win_getid()
+    call win_execute(l:winid, printf('tabedit %s', fnameescape(a:filepath)))
+    let l:bufid = bufnr(a:filepath)
+    let l:winid = sort(win_findbuf(l:bufid))[-1]
   endif
 
   call s:OpenDiffWindow(l:info, l:winid)
@@ -160,20 +159,19 @@ function! s:OpenGitRevFileDiff(before, after, filepath) abort
   let l:bfinfo = s:GetGitRevFileInfo(l:gitdir, a:filepath, a:before)
   let l:bfexists = bufexists(l:bfinfo.bufname)
 
-  silent execute printf('tabedit %s', fnameescape(l:bfinfo.bufname))
-
+  call win_execute(win_getid() ,printf('tabedit %s', fnameescape(l:bfinfo.bufname)))
   let l:bufid = bufnr(l:bfinfo.bufname)
-  let l:winid = bufwinid(l:bufid)
+  let l:winid = sort(win_findbuf(l:bufid))[-1]
 
   if !l:bfexists
-    call win_execute(l:winid, 'setlocal undolevels=-1')
     call setbufline(l:bufid, 1, l:bfinfo.lines)
-    call win_execute(l:winid, 'setlocal buftype=nofile bufhidden=wipe noswapfile nobuflisted nomodifiable')
     call setbufvar(l:bufid, 'gitdify', { 'filepath': l:bfinfo.filepath })
   endif
 
+  call win_execute(l:winid, 'setlocal undolevels=-1')
+  call win_execute(l:winid, 'setlocal buftype=nofile bufhidden=wipe noswapfile nobuflisted nomodifiable')
+
   let l:diffwinid = s:OpenDiffWindow(l:afinfo, l:winid)
-  call win_execute(l:diffwinid, 'silent! foldclose!')
   call win_gotoid(l:winid)
 endfunction
 
