@@ -179,7 +179,7 @@ endfunction
 
 function! s:CreatePopupObject(scope) abort
   let l:search = ''
-  let l:meta = { 'pos': {}, 'result': 1 }
+  let l:meta = { 'pos': {}, 'result': 2 }
   let l:popup = extend(extend({}, l:), a:scope)
 
   function! l:popup.ItemList() dict abort
