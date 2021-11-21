@@ -207,13 +207,6 @@ function! s:CreatePopupObject(scope) abort
   endfunction
 
   function! l:popup.Filter(id, key) dict abort
-    let l:ignore_keys = [
-    \ "\<Down>", "\<C-N>",
-    \ "\<Up>", "\<C-P>",
-    \ "\<Space>", "\<Enter>",
-    \ "\<Esc>", "\<C-C>"
-    \ ]
-
     let l:key = a:key
     let l:result = line('.', a:id)
     let l:enter = 0
@@ -251,17 +244,13 @@ function! s:CreatePopupObject(scope) abort
       let l:key = "\<Esc>"
     endif
 
-    if index(l:ignore_keys, l:key) != -1
-      return popup_filter_menu(a:id, l:key)
-    endif
-
     if self.KeyMap(a:id, l:key, l:enter)
       return 1
     endif
 
     call popup_settext(a:id, map(self.Items(), { _, v -> v.text }))
 
-    return 1
+    return popup_filter_menu(a:id, l:key)
   endfunction
 
   function! l:popup._Open() dict abort
