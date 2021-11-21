@@ -81,7 +81,7 @@ function! s:GetGitLsFiles(filepath, revision) abort
     let l:revision = 'HEAD'
   endif
   let l:gitfiles = s:System(['git', 'ls-tree', '-r', '--name-only', '--', l:revision], l:gitdir)
-  return map(l:gitfiles, { _, f -> ({ 'name': f, 'path': simplify(l:gitdir . '/' . f )}) })
+  return map(l:gitfiles, { _, f -> ({ 'name': f, 'path': simplify(l:gitdir . '/' . f ) }) })
 endfunction
 
 function! s:IsGitFile(filepath, revision) abort
@@ -94,7 +94,7 @@ endfunction
 function! s:GetGitDiffFiles(filepath, before, after) abort
   let l:gitdir = s:GetGitDir(a:filepath)
   let l:gitfiles = s:System(['git', 'diff', '--name-only', a:before, a:after], l:gitdir)
-  return map(l:gitfiles, { _, f -> ({ 'name': f, 'path': simplify(l:gitdir . '/' . f )}) })
+  return map(l:gitfiles, { _, f -> ({ 'name': f, 'path': simplify(l:gitdir . '/' . f ) }) })
 endfunction
 
 function! s:GetGitRevFileInfo(gitdir, filepath, revision) abort
@@ -179,7 +179,7 @@ endfunction
 
 function! s:CreatePopupObject(scope) abort
   let l:search = ''
-  let l:meta = {'pos': {}, 'result': 1}
+  let l:meta = { 'pos': {}, 'result': 1 }
   let l:popup = extend(extend({}, l:), a:scope)
 
   function! l:popup.SetItems(selects) dict abort
