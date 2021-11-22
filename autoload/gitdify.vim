@@ -297,19 +297,24 @@ function! s:CreateCommitFilesPopup(filepath, before, after, winid, bang, opener)
     return self._selects
   endfunction
 
-  function! l:popup.OpenDiff(id, result, focus) dict abort
+  function! l:popup.OpenDiff(selected) dict abort
+    try
+      if self.bang
+        return s:OpenGitRevCurrentFileDiff(self.after, a:selected.val, self.gitdir, self.winid)
+      else
+        return s:OpenGitRevFileDiff(self.before, self.after, a:selected.val, self.gitdir)
+      endif
+    catch /.*/
+      call s:Catch(v:exception, v:throwpoint)
+    endtry
+  endfunction
+
+  function! l:popup.Callback(id, result) dict abort
     try
       let l:selects = self.Items()
       if a:result > 1 && !empty(l:selects)
         let l:selected = l:selects[a:result - 1]
-        if self.bang
-          let l:winid = s:OpenGitRevCurrentFileDiff(self.after, l:selected.val, self.gitdir, self.winid)
-        else
-          let l:winid = s:OpenGitRevFileDiff(self.before, self.after, l:selected.val, self.gitdir)
-        endif
-        if a:focus
-          call win_gotoid(l:winid)
-        endif
+        call win_gotoid(self.OpenDiff(l:selected))
       elseif a:result != 0
         if type(get(self.opener, 'Open', '')) == type(function('tr'))
           call self.opener.Open()
@@ -320,17 +325,12 @@ function! s:CreateCommitFilesPopup(filepath, before, after, winid, bang, opener)
     endtry
   endfunction
 
-  function! l:popup.Callback(id, result) dict abort
-    call self.OpenDiff(a:id, a:result, 1)
-  endfunction
-
   function! l:popup.KeyMap(id, key, enter) dict abort
     if a:key ==# "\<C-T>"
       let l:result = self.meta.result
       if l:result > 1
-        let l:selects = self.Items()
-        let l:selected = l:selects[l:result - 1]
-        call self.OpenDiff(a:id, l:result, 0)
+        let l:selected = self.Items()[l:result - 1]
+        call timer_start(1, { -> self.OpenDiff(l:selected) })
         call filter(self._selects, { _, v -> !(v.val is l:selected.val) })
         call self.UpdateItems()
       endif
