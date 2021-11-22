@@ -324,7 +324,7 @@ function! s:CreateCommitFilesPopup(filepath, before, after, winid, bang, opener)
   endfunction
 
   function! l:popup.KeyMap(id, key, enter) dict abort
-    if a:key ==# "\<C-T>"
+    if a:key ==# "\<Tab>"
       let l:result = self.meta.result
       if l:result > 1
         let l:selected = self.Items()[l:result - 1]
