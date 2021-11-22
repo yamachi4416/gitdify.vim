@@ -73,7 +73,7 @@ function! s:GetGitFileLog(filepath, gitdir, all) abort
   return s:System(l:command, a:gitdir)
 endfunction
 
-function! s:GetGitLsFiles(filepath, gitdir, revision) abort
+function! s:GetGitLsFiles(gitdir, revision) abort
   let l:revision = a:revision
   if empty(l:revision)
     let l:revision = 'HEAD'
@@ -83,7 +83,7 @@ function! s:GetGitLsFiles(filepath, gitdir, revision) abort
 endfunction
 
 function! s:IsGitFile(filepath, gitdir, revision) abort
-  let l:files = map(s:GetGitLsFiles(a:filepath, a:gitdir, a:revision),
+  let l:files = map(s:GetGitLsFiles(a:gitdir, a:revision),
   \ { _, v -> s:NormalizePath(fnamemodify(v.path, ':p')) })
   let l:path = s:NormalizePath(fnamemodify(simplify(a:filepath), ':p'))
   return index(l:files, l:path) != -1
@@ -148,7 +148,6 @@ function! s:OpenGitRevCurrentFileDiff(revision, filepath, gitdir, winid) abort
   call s:OpenDiffWindow(l:info, l:winid)
 
   return l:winid
-  "call win_gotoid(l:winid)
 endfunction
 
 function! s:OpenGitRevFileDiff(before, after, filepath, gitdir) abort
@@ -171,7 +170,6 @@ function! s:OpenGitRevFileDiff(before, after, filepath, gitdir) abort
   call s:OpenDiffWindow(l:afinfo, l:winid)
 
   return l:winid
-  "call win_gotoid(l:winid)
 endfunction
 
 function! s:CreatePopupObject(scope) abort
