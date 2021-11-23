@@ -127,8 +127,6 @@ function! s:OpenDiffWindow(info, winid) abort
   endif
 
   call win_execute(l:diffwinid, 'diffthis')
-  call setbufvar(l:diffbufid, 'gitdify', { 'filepath': a:info.filepath })
-
   call win_execute(a:winid, 'diffthis')
 
   return l:diffwinid
@@ -145,7 +143,12 @@ function! s:OpenGitRevCurrentFileDiff(revision, filepath, gitdir, winid) abort
     let l:winid = sort(win_findbuf(l:bufid))[-1]
   endif
 
-  call s:OpenDiffWindow(l:info, l:winid)
+  let l:diffwinid = s:OpenDiffWindow(l:info, l:winid)
+  let l:difftabwin = win_id2tabwin(l:diffwinid)
+  call settabwinvar(l:difftabwin[0], l:difftabwin[1], 'gitdify', {
+  \ 'filepath': l:info.filepath,
+  \ 'revision': { 'cur': l:info.revision, 'before': l:info.revision, 'after': '' },
+  \})
 
   return l:winid
 endfunction
@@ -156,20 +159,29 @@ function! s:OpenGitRevFileDiff(before, after, filepath, gitdir) abort
   let l:bfexists = bufexists(l:bfinfo.bufname)
 
   call win_execute(win_getid() ,printf('tabedit %s', fnameescape(l:bfinfo.bufname)))
-  let l:bufid = bufnr(l:bfinfo.bufname)
-  let l:winid = sort(win_findbuf(l:bufid))[-1]
+  let l:bfbufid = bufnr(l:bfinfo.bufname)
+  let l:bfwinid = sort(win_findbuf(l:bfbufid))[-1]
+  let l:bftabwin = win_id2tabwin(l:bfwinid)
+  call settabwinvar(l:bftabwin[0], l:bftabwin[1], 'gitdify', {
+  \ 'filepath': l:bfinfo.filepath,
+  \ 'revision': { 'cur': l:bfinfo.revision, 'before': l:bfinfo.revision, 'after': l:afinfo.revision },
+  \})
 
   if !l:bfexists
-    call setbufline(l:bufid, 1, l:bfinfo.lines)
-    call setbufvar(l:bufid, 'gitdify', { 'filepath': l:bfinfo.filepath })
+    call setbufline(l:bfbufid, 1, l:bfinfo.lines)
   endif
 
-  call win_execute(l:winid, 'setlocal undolevels=-1')
-  call win_execute(l:winid, 'setlocal buftype=nofile bufhidden=wipe noswapfile nobuflisted nomodifiable')
+  call win_execute(l:bfwinid, 'setlocal undolevels=-1')
+  call win_execute(l:bfwinid, 'setlocal buftype=nofile bufhidden=wipe noswapfile nobuflisted nomodifiable')
 
-  call s:OpenDiffWindow(l:afinfo, l:winid)
+  let l:diffwinid = s:OpenDiffWindow(l:afinfo, l:bfwinid)
+  let l:difftabwin = win_id2tabwin(l:diffwinid)
+  call settabwinvar(l:difftabwin[0], l:difftabwin[1], 'gitdify', {
+  \ 'filepath': l:bfinfo.filepath,
+  \ 'revision': { 'cur': l:afinfo.revision, 'before': l:bfinfo.revision, 'after': l:afinfo.revision },
+  \})
 
-  return l:winid
+  return l:bfwinid
 endfunction
 
 function! s:CreatePopupObject(scope) abort
@@ -402,6 +414,12 @@ function! gitdify#OpenCommitLogPopup(filepath, bang) abort
   try
     if !empty(a:filepath)
       let l:filepath = expand(a:filepath)
+      if l:filepath =~# '^gitdify://'
+        let l:gitdify = getwinvar(bufwinnr(a:filepath), 'gitdir')
+        if !empty(l:gitdify)
+          let l:filepath = l:gitdify.filepath
+        endif
+      endif
     else
       let l:filepath = ''
     endif
