@@ -113,9 +113,7 @@ endfunction
 function! s:GetGitRevFileInfo(gitdir, filepath, revision, before, after) abort
   let l:gitpath = s:ToRelativePath(a:gitdir, a:filepath)
   let l:bufname = printf('gitdify://%s/%s/%s/%s:%s', a:gitdir, a:revision, a:before, a:after, l:gitpath)
-  if bufexists(l:bufname)
-    let l:lines = getbufline(bufnr(l:bufname), 1, '$')
-  elseif s:IsGitFile(a:filepath, a:gitdir, a:revision)
+  if s:IsGitFile(a:filepath, a:gitdir, a:revision)
     let l:param = printf('%s:%s', a:revision, l:gitpath)
     let l:lines = s:System(['git', 'show', l:param], a:gitdir)
   else
