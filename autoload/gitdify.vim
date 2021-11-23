@@ -96,7 +96,10 @@ endfunction
 
 function! s:GetGitRevFileInfo(gitdir, filepath, revision) abort
   let l:gitpath = s:ToRelativePath(a:gitdir, a:filepath)
-  if s:IsGitFile(a:filepath, a:gitdir, a:revision)
+  let l:bufname = printf('gitdify://%s/%s:%s', a:gitdir, a:revision, l:gitpath)
+  if bufexists(l:bufname)
+    let l:lines = getbufline(bufnr(l:bufname), 1, '$')
+  elseif s:IsGitFile(a:filepath, a:gitdir, a:revision)
     let l:param = printf('%s:%s', a:revision, l:gitpath)
     let l:lines = s:System(['git', 'show', l:param], a:gitdir)
   else
@@ -108,23 +111,20 @@ function! s:GetGitRevFileInfo(gitdir, filepath, revision) abort
   \ 'gitdir': a:gitdir,
   \ 'gitpath': l:gitpath,
   \ 'lines': l:lines,
-  \ 'bufname': printf('gitdify://%s/%s:%s', a:gitdir, a:revision, l:gitpath)
+  \ 'bufname': l:bufname
   \}
 endfunction
 
 function! s:OpenDiffWindow(info, winid) abort
-  let l:bfexists = bufexists(a:info.bufname)
-
   call win_execute(a:winid, printf('vsplit %s', fnameescape(a:info.bufname)))
   let l:diffbufid = bufnr(a:info.bufname)
   let l:diffwinid = sort(win_findbuf(l:diffbufid))[-1]
 
   call win_execute(a:winid, 'setlocal foldlevel=0')
-  if !l:bfexists
-    call win_execute(l:diffwinid, printf('setlocal fileformat=%s undolevels=-1 foldlevel=0', getwinvar(a:winid, '&l:fileformat')))
-    call setbufline(l:diffbufid, 1, a:info.lines)
-    call win_execute(l:diffwinid, 'setlocal buftype=nofile bufhidden=wipe noswapfile nobuflisted nomodifiable')
-  endif
+  call win_execute(l:diffwinid, 'setlocal undolevels=-1 foldlevel=0 modifiable')
+  call win_execute(l:diffwinid, ':%d_')
+  call setbufline(l:diffbufid, 1, a:info.lines)
+  call win_execute(l:diffwinid, 'setlocal buftype=nofile bufhidden= noswapfile nobuflisted nomodifiable')
 
   call win_execute(l:diffwinid, 'diffthis')
   call win_execute(a:winid, 'diffthis')
@@ -137,11 +137,9 @@ function! s:OpenGitRevCurrentFileDiff(revision, filepath, gitdir, winid) abort
   let l:bufid = bufnr(a:filepath)
   let l:winid = a:winid
 
-  if l:bufid == -1 || !win_id2win(bufwinid(l:bufid))
-    call win_execute(l:winid, printf('tabedit %s', fnameescape(a:filepath)))
-    let l:bufid = bufnr(a:filepath)
-    let l:winid = sort(win_findbuf(l:bufid))[-1]
-  endif
+  call win_execute(l:winid, printf('tabedit %s', fnameescape(a:filepath)))
+  let l:bufid = bufnr(a:filepath)
+  let l:winid = sort(win_findbuf(l:bufid))[-1]
 
   let l:diffwinid = s:OpenDiffWindow(l:info, l:winid)
   let l:difftabwin = win_id2tabwin(l:diffwinid)
@@ -156,7 +154,6 @@ endfunction
 function! s:OpenGitRevFileDiff(before, after, filepath, gitdir) abort
   let l:afinfo = s:GetGitRevFileInfo(a:gitdir, a:filepath, a:after)
   let l:bfinfo = s:GetGitRevFileInfo(a:gitdir, a:filepath, a:before)
-  let l:bfexists = bufexists(l:bfinfo.bufname)
 
   call win_execute(win_getid() ,printf('tabedit %s', fnameescape(l:bfinfo.bufname)))
   let l:bfbufid = bufnr(l:bfinfo.bufname)
@@ -167,12 +164,10 @@ function! s:OpenGitRevFileDiff(before, after, filepath, gitdir) abort
   \ 'revision': { 'cur': l:bfinfo.revision, 'before': l:bfinfo.revision, 'after': l:afinfo.revision },
   \})
 
-  if !l:bfexists
-    call setbufline(l:bfbufid, 1, l:bfinfo.lines)
-  endif
-
-  call win_execute(l:bfwinid, 'setlocal undolevels=-1')
-  call win_execute(l:bfwinid, 'setlocal buftype=nofile bufhidden=wipe noswapfile nobuflisted nomodifiable')
+  call win_execute(l:bfwinid, 'setlocal undolevels=-1 modifiable')
+  call win_execute(l:bfwinid, ':%d_')
+  call setbufline(l:bfbufid, 1, l:bfinfo.lines)
+  call win_execute(l:bfwinid, 'setlocal buftype=nofile bufhidden= noswapfile nobuflisted nomodifiable')
 
   let l:diffwinid = s:OpenDiffWindow(l:afinfo, l:bfwinid)
   let l:difftabwin = win_id2tabwin(l:diffwinid)
@@ -352,7 +347,7 @@ function! s:CreateCommitFilesPopup(filepath, before, after, winid, bang, opener)
   return l:popup
 endfunction
 
-function! s:CreateCommitLogPopup(filepath, winid, bang) abort
+function! s:CreateCommitLogPopup(filepath, winid, bang, opener) abort
   let l:_all = 0
   let l:popup = s:CreatePopupObject(extend(extend({}, a:), l:))
 
@@ -386,6 +381,10 @@ function! s:CreateCommitLogPopup(filepath, winid, bang) abort
           \ self.filepath, l:before, l:after, self.winid, self.bang, self)
           let l:files_popup.meta.title = printf('[%s] %s', l:revision, l:message)
           call l:files_popup.Open()
+        endif
+      elseif a:result != 0
+        if type(get(self.opener, 'Open', '')) == type(function('tr'))
+          call self.opener.Open()
         endif
       endif
     catch /.*/
@@ -424,7 +423,7 @@ function! gitdify#OpenCommitLogPopup(filepath, bang) abort
       let l:filepath = ''
     endif
 
-    let l:logs_popup = s:CreateCommitLogPopup(l:filepath, win_getid(), a:bang)
+    let l:logs_popup = s:CreateCommitLogPopup(l:filepath, win_getid(), a:bang, {})
     call l:logs_popup.Open()
   catch /.*/
     call s:Catch(v:exception, v:throwpoint)
