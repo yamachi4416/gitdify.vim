@@ -75,7 +75,9 @@ function! s:GetGitFileLog(filepath, gitdir, all) abort
   if !empty(a:filepath)
     if filereadable(a:filepath) || isdirectory(a:filepath)
       let l:gitpath = s:ToRelativePath(a:gitdir, a:filepath)
-      call extend(l:command, ['--', l:gitpath])
+      if !empty(l:gitpath)
+        call extend(l:command, ['--', l:gitpath])
+      endif
     endif
   endif
   return s:System(l:command, a:gitdir)
@@ -98,7 +100,16 @@ function! s:IsGitFile(filepath, gitdir, revision) abort
 endfunction
 
 function! s:GetGitDiffFiles(filepath, gitdir, before, after) abort
-  let l:gitfiles = s:System(['git', 'diff', '--name-only', a:before, a:after], a:gitdir)
+  let l:command = ['git', 'diff', '--name-only', a:before, a:after]
+  if !empty(a:filepath)
+    if isdirectory(a:filepath)
+      let l:gitpath = s:ToRelativePath(a:gitdir, a:filepath)
+      if !empty(l:gitpath)
+        call extend(l:command, ['--', l:gitpath])
+      endif
+    endif
+  endif
+  let l:gitfiles = s:System(l:command, a:gitdir)
   return map(l:gitfiles, { _, f -> ({ 'name': f, 'path': simplify(a:gitdir . '/' . f ) }) })
 endfunction
 
