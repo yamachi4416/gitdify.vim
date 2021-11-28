@@ -1,9 +1,13 @@
 const s:EMPTY_HASH = '4b825dc642cb6eb9a060e54bf8d69288fbee4904'
 
+function! s:IsLogLevelDebug() abort
+  let l:level = get(g:, 'gitdify_log_level', 'INFO')
+  return l:level ==# 'DEBUG'
+endfunction
+
 function! s:Catch(exception, throwpoint) abort
-  let l:level = get(g:, 'gitdify_error_message', 'INFO')
   echohl WarningMsg
-  if l:level ==# 'DEBUG'
+  if s:IsLogLevelDebug()
     echomsg a:exception
     echomsg a:throwpoint
   else
@@ -21,6 +25,10 @@ function! s:System(cmd, cwd) abort
 
   if !empty(a:cwd) && isdirectory(a:cwd)
     let l:opts.cwd = a:cwd
+  endif
+
+  if s:IsLogLevelDebug()
+    echom printf('%s %s', a:cmd, a:cwd)
   endif
 
   " TODO: asynchronous
