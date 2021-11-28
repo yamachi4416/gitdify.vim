@@ -458,7 +458,7 @@ function! gitdify#OpenCommitLogPopup(filepath, bang) abort
     if !empty(a:filepath)
       let l:filepath = expand(a:filepath)
       if l:filepath =~# '^gitdify://'
-        let l:info = s:GetInfoFromBufname(l:bufname)
+        let l:info = s:GetInfoFromBufname(l:filepath)
         let l:filepath = l:info.filepath
       endif
     else
