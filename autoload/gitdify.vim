@@ -165,7 +165,7 @@ function! s:OpenDiffWindow(info, winid) abort
   return l:diffwinid
 endfunction
 
-function! s:SetupDiffWondow(winid) abort
+function! s:SetupDiffWindow(winid) abort
   call win_execute(a:winid, 'command! -nargs=0 -buffer'
   \ . ' GitdifyFiles call gitdify#OpenCommitFilesPopup()')
 endfunction
@@ -180,7 +180,7 @@ function! s:OpenGitRevCurrentFileDiff(revision, filepath, gitdir, winid) abort
   let l:winid = sort(win_findbuf(l:bufid))[-1]
 
   let l:diffwinid = s:OpenDiffWindow(l:info, l:winid)
-  call s:SetupDiffWondow(l:diffwinid)
+  call s:SetupDiffWindow(l:diffwinid)
 
   return l:winid
 endfunction
@@ -192,7 +192,7 @@ function! s:OpenGitRevFileDiff(before, after, filepath, gitdir) abort
   call win_execute(win_getid() ,printf('tabedit %s', fnameescape(l:bfinfo.bufname)))
   let l:bfbufnr = bufnr(l:bfinfo.bufname)
   let l:bfwinid = sort(win_findbuf(l:bfbufnr))[-1]
-  call s:SetupDiffWondow(l:bfwinid)
+  call s:SetupDiffWindow(l:bfwinid)
 
   call win_execute(l:bfwinid, 'setlocal undolevels=-1 modifiable')
   call win_execute(l:bfwinid, ':%d_')
@@ -200,7 +200,7 @@ function! s:OpenGitRevFileDiff(before, after, filepath, gitdir) abort
   call win_execute(l:bfwinid, 'setlocal buftype=nofile bufhidden=wipe noswapfile nobuflisted nomodifiable')
 
   let l:diffwinid = s:OpenDiffWindow(l:afinfo, l:bfwinid)
-  call s:SetupDiffWondow(l:diffwinid)
+  call s:SetupDiffWindow(l:diffwinid)
 
   return l:bfwinid
 endfunction
