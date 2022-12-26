@@ -242,12 +242,8 @@ function! s:CreatePopupObject(scope) abort
     let self.meta.result = l:result
 
     if strtrans(l:key) ==# l:key
-      if l:key ==# "\<Space>"
-        let self.search = self.search . l:key
-        let l:key = ''
-      else
-        let self.search = self.search . l:key
-      endif
+      let self.search = self.search . l:key
+      let l:key = ''
     elseif l:key ==# "\<C-C>"
       call popup_close(a:id)
       return 1
