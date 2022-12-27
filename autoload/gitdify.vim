@@ -1,5 +1,8 @@
 const s:EMPTY_HASH = '4b825dc642cb6eb9a060e54bf8d69288fbee4904'
 
+function! s:Nop(...) abort
+endfunction
+
 function! s:IsLogLevelDebug() abort
   let l:level = get(g:, 'gitdify_log_level', 'INFO')
   return l:level ==# 'DEBUG'
@@ -205,10 +208,32 @@ function! s:OpenGitRevFileDiff(before, after, filepath, gitdir) abort
   return l:bfwinid
 endfunction
 
+function! s:PopupClose(winid) abort
+  call popup_close(a:winid)
+endfunction
+
+function! s:PopupGetPos(winid) abort
+  return popup_getpos(a:winid)
+endfunction
+
+function! s:PopupSetText(winid, items) abort
+  call popup_settext(a:winid, a:items)
+endfunction
+
 function! s:CreatePopupObject(scope) abort
-  let l:search = ''
-  let l:meta = { 'pos': {}, 'result': 2 }
-  let l:popup = extend(extend({}, l:), a:scope)
+  let l:popup = extend({
+  \ 'search': '',
+  \ 'meta': {
+  \   'pos': {},
+  \   'result': 2,
+  \ },
+  \ 'winid': -1,
+  \}, a:scope)
+
+  let l:popup.opener = extend({
+  \ 'Open': funcref('s:Nop'),
+  \ 'Close': funcref('s:Nop'),
+  \}, get(a:scope, 'opener', {}))
 
   function! l:popup.ItemList() dict abort
     return []
@@ -230,7 +255,7 @@ function! s:CreatePopupObject(scope) abort
     return extend([{ 'text': self.search }], l:items)
   endfunction
 
-  function! l:popup.KeyMap(id, key, enter) dict abort
+  function! l:popup.KeyMap(key, enter) dict abort
     return 0
   endfunction
 
@@ -238,14 +263,16 @@ function! s:CreatePopupObject(scope) abort
     let l:key = a:key
     let l:result = line('.', a:id)
     let l:enter = 0
-    let self.meta.pos = popup_getpos(a:id)
+
+    let self.winid = a:id
+    let self.meta.pos = s:PopupGetPos(self.winid)
     let self.meta.result = l:result
 
     if strtrans(l:key) ==# l:key
       let self.search = self.search . l:key
       let l:key = ''
-    elseif l:key ==# "\<C-C>"
-      call popup_close(a:id)
+    elseif l:key ==# "\<C-Q>"
+      call self.CloseAll()
       return 1
     elseif l:key ==# "\<BS>" || l:key ==# "\<C-H>"
       let l:strlen = strchars(self.search)
@@ -268,13 +295,30 @@ function! s:CreatePopupObject(scope) abort
       let l:key = "\<Esc>"
     endif
 
-    if self.KeyMap(a:id, l:key, l:enter)
+    if self.KeyMap(l:key, l:enter)
       return 1
     endif
 
-    call popup_settext(a:id, map(self.Items(), { _, v -> v.text }))
+    call s:PopupSetText(self.winid, map(self.Items(), { _, v -> v.text }))
 
-    return popup_filter_menu(a:id, l:key)
+    return popup_filter_menu(self.winid, l:key)
+  endfunction
+
+  function! l:popup.WinExecute(command) dict abort
+    call win_execute(self.winid, a:command)
+  endfunction
+
+  function! l:popup._Close() dict abort
+    call s:PopupClose(self.winid)
+  endfunction
+
+  function! l:popup.Close() dict abort
+    call self._Close()
+  endfunction
+
+  function! l:popup.CloseAll() dict abort
+    call self.Close()
+    call self.opener.Close()
   endfunction
 
   function! l:popup._Open() dict abort
@@ -282,7 +326,7 @@ function! s:CreatePopupObject(scope) abort
       call self.UpdateItems()
     endif
 
-    let l:winid = popup_menu(map(self.Items(), { _, v -> v.text }), extend({
+    let self.winid = popup_menu(map(self.Items(), { _, v -> v.text }), extend({
     \ 'callback': self.Callback,
     \ 'filter': self.Filter,
     \ 'pos': 'topleft',
@@ -294,8 +338,7 @@ function! s:CreatePopupObject(scope) abort
     \ 'title': get(self.meta, 'title', '')
     \}, self.meta.pos))
 
-    call win_execute(l:winid, printf(':%d', self.meta.result))
-    return l:winid
+    call self.WinExecute(printf(':%d', self.meta.result))
   endfunction
 
   function! l:popup.Open() dict abort
@@ -343,16 +386,14 @@ function! s:CreateCommitFilesPopup(filepath, before, after, winid, bang, opener)
         let l:selected = l:selects[a:result - 1]
         call win_gotoid(self.OpenDiff(l:selected))
       elseif a:result != 0
-        if type(get(self.opener, 'Open', '')) == type(function('tr'))
-          call self.opener.Open()
-        endif
+        call self.opener.Open()
       endif
     catch /.*/
       call s:Catch(v:exception, v:throwpoint)
     endtry
   endfunction
 
-  function! l:popup.KeyMap(id, key, enter) dict abort
+  function! l:popup.KeyMap(key, enter) dict abort
     if a:key ==# "\<Tab>"
       let l:result = self.meta.result
       if l:result > 1
@@ -405,16 +446,14 @@ function! s:CreateCommitLogPopup(filepath, winid, bang, opener) abort
           call l:files_popup.Open()
         endif
       elseif a:result != 0
-        if type(get(self.opener, 'Open', '')) == type(function('tr'))
-          call self.opener.Open()
-        endif
+        call self.opener.Open()
       endif
     catch /.*/
       call s:Catch(v:exception, v:throwpoint)
     endtry
   endfunction
 
-  function! l:popup.KeyMap(id, key, enter) dict abort
+  function! l:popup.KeyMap(key, enter) dict abort
     if a:key ==# "\<C-A>"
       let self._all = !self._all
       call self.UpdateItems()
@@ -424,8 +463,8 @@ function! s:CreateCommitLogPopup(filepath, winid, bang, opener) abort
   endfunction
 
   function! l:popup.Open() dict abort
-    let l:winid = self._Open()
-    call win_execute(l:winid, 'setlocal syntax=gitrebase')
+    call self._Open()
+    call self.WinExecute('setlocal syntax=gitrebase')
   endfunction
 
   return l:popup
