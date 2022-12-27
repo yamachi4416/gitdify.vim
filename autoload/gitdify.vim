@@ -208,16 +208,16 @@ function! s:OpenGitRevFileDiff(before, after, filepath, gitdir) abort
   return l:bfwinid
 endfunction
 
-function! s:PopupClose(winid) abort
-  call popup_close(a:winid)
+function! s:PopupClose(popupid) abort
+  call popup_close(a:popupid)
 endfunction
 
-function! s:PopupGetPos(winid) abort
-  return popup_getpos(a:winid)
+function! s:PopupGetPos(popupid) abort
+  return popup_getpos(a:popupid)
 endfunction
 
-function! s:PopupSetText(winid, items) abort
-  call popup_settext(a:winid, a:items)
+function! s:PopupSetText(popupid, items) abort
+  call popup_settext(a:popupid, a:items)
 endfunction
 
 function! s:CreatePopupObject(scope) abort
@@ -227,7 +227,7 @@ function! s:CreatePopupObject(scope) abort
   \   'pos': {},
   \   'result': 2,
   \ },
-  \ 'winid': -1,
+  \ 'popupid': -1,
   \}, a:scope)
 
   let l:popup.opener = extend({
@@ -290,8 +290,8 @@ function! s:CreatePopupObject(scope) abort
     let l:result = line('.', a:id)
     let l:enter = 0
 
-    let self.winid = a:id
-    let self.meta.pos = s:PopupGetPos(self.winid)
+    let self.popupid = a:id
+    let self.meta.pos = s:PopupGetPos(self.popupid)
     let self.meta.result = l:result
 
     if strtrans(l:key) ==# l:key
@@ -328,17 +328,17 @@ function! s:CreatePopupObject(scope) abort
       return 1
     endif
 
-    call s:PopupSetText(self.winid, map(self.Items(), { _, v -> v.text }))
+    call s:PopupSetText(self.popupid, map(self.Items(), { _, v -> v.text }))
 
-    return popup_filter_menu(self.winid, l:key)
+    return popup_filter_menu(self.popupid, l:key)
   endfunction
 
   function! l:popup.WinExecute(command) dict abort
-    call win_execute(self.winid, a:command)
+    call win_execute(self.popupid, a:command)
   endfunction
 
   function! l:popup._Close() dict abort
-    call s:PopupClose(self.winid)
+    call s:PopupClose(self.popupid)
   endfunction
 
   function! l:popup.Close() dict abort
@@ -355,7 +355,7 @@ function! s:CreatePopupObject(scope) abort
       call self.UpdateItems()
     endif
 
-    let self.winid = popup_menu(map(self.Items(), { _, v -> v.text }), extend({
+    let self.popupid = popup_menu(map(self.Items(), { _, v -> v.text }), extend({
     \ 'callback': self.Callback,
     \ 'filter': self.Filter,
     \ 'pos': 'topleft',
