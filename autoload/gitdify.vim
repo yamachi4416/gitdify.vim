@@ -255,6 +255,32 @@ function! s:CreatePopupObject(scope) abort
     return extend([{ 'text': self.search }], l:items)
   endfunction
 
+  function! l:popup._Help() dict abort
+    return [
+    \ ['<C-Q>', 'close all popup'],
+    \ ['<C-X>', 'close current popup'],
+    \ ['<C-H> <BS>', 'delete a char from search text'],
+    \ ['<C-W> <DEL>', 'delete a word from search text'],
+    \ ['<C-N> <C-J>', 'cursor move to down'],
+    \ ['<C-P> <C-K>', 'cursor move to up'],
+    \]
+  endfunction
+
+  function! l:popup.Help() dict abort
+    return self._Help()
+  endfunction
+
+  function! l:popup.ShowHelp() dict abort
+    let l:message = []
+    let l:help = self.Help()
+    let l:max_words = max(map(copy(l:help), { _, v -> strlen(v[0]) }))
+    let l:format = '%-' . l:max_words . 'S'
+    for l:item in l:help
+      call add(l:message, printf(l:format, l:item[0]) . ' | ' . l:item[1])
+    endfor
+    echo join(l:message, "\r\n")
+  endfunction
+
   function! l:popup.KeyMap(key, enter) dict abort
     return 0
   endfunction
@@ -271,6 +297,9 @@ function! s:CreatePopupObject(scope) abort
     if strtrans(l:key) ==# l:key
       let self.search = self.search . l:key
       let l:key = ''
+    elseif l:key ==# "\<F1>"
+      call self.ShowHelp()
+      return 1
     elseif l:key ==# "\<C-Q>"
       call self.CloseAll()
       return 1
@@ -335,7 +364,7 @@ function! s:CreatePopupObject(scope) abort
     \ 'maxwidth': &columns * 6 / 10,
     \ 'minwidth': &columns * 6 / 10,
     \ 'resize': 1,
-    \ 'title': get(self.meta, 'title', '')
+    \ 'title': get(self.meta, 'title', 'Press <F1> to show help')
     \}, self.meta.pos))
 
     call self.WinExecute(printf(':%d', self.meta.result))
@@ -350,6 +379,13 @@ endfunction
 
 function! s:CreateCommitFilesPopup(filepath, before, after, winid, bang, opener) abort
   let l:popup = s:CreatePopupObject(extend(extend({}, a:), l:))
+
+  function! l:popup.Help() dict abort
+    return extend(self._Help(), [
+    \ ['<Enter>', 'open a diff window for the selected file and close the popup'],
+    \ ['<Tab>', 'open a diff window for the selected file and keep the popup open'],
+    \])
+  endfunction
 
   function! l:popup.ItemList() dict abort
     if !has_key(self, '_selects')
@@ -413,6 +449,13 @@ endfunction
 function! s:CreateCommitLogPopup(filepath, winid, bang, opener) abort
   let l:_all = 0
   let l:popup = s:CreatePopupObject(extend(extend({}, a:), l:))
+
+  function! l:popup.Help() dict abort
+    return extend(self._Help(), [
+    \ ['<C-A>', 'toggle --all flag'],
+    \ ['<Enter>', 'show changed files in commit'],
+    \])
+  endfunction
 
   function! l:popup.ItemList() dict abort
     if !has_key(self, 'gitdir')
